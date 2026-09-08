@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title> 小游戏 超劲爆 18x ❤️</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; }
+        body {
+            background-color: #faf5ef;
+            color: #4a3e3d;
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #bgm-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: #fff;
+            color: #ff4757;
+            border: 2px solid #ff758f;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 100;
+            box-shadow: 0 4px 10px rgba(255, 117, 143, 0.15);
+            transition: transform 0.1s;
+        }
+        #bgm-btn:active { transform: scale(0.95); }
+
+        .header {
+            text-align: center;
+            margin-bottom: 12px;
+        }
+
+        .title {
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            color: #4a3e3d;
+        }
+
+        .hint {
+            font-size: 13px;
+            color: #8c7a78;
+            margin-top: 4px;
+            background: #fff;
+            padding: 5px 14px;
+            border-radius: 12px;
+            border: 1.5px solid #e0d5ce;
+            display: inline-block;
+        }
+
+        #canvas-box {
+            position: relative;
+            background: #ffffff;
+            border: 4px solid #4a3e3d;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(74, 62, 61, 0.12), 6px 6px 0px #4a3e3d;
+        }
+
+        canvas {
+            display: block;
+            border-radius: 16px;
+            cursor: grab;
+        }
+        canvas:active { cursor: grabbing; }
+
+        .control-tip {
+            margin-top: 15px;
+            font-size: 13px;
+            color: #ff6b81;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        #final-card {
+            display: none;
+            position: absolute;
+            bottom: 25px;
+            text-align: center;
+            background: #ffffff;
+            border: 3.5px solid #4a3e3d;
+            padding: 16px 28px;
+            border-radius: 20px;
+            box-shadow: 6px 6px 0px #4a3e3d;
+            animation: popup 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        .love-sub {
+            font-size: 16px;
+            color: #ff4757;
+            font-weight: bold;
+            line-height: 1.8;
+            letter-spacing: 1px;
+        }
+
+        @keyframes popup {
+            0% { opacity: 0; transform: scale(0.6) translateY(30px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <button id="bgm-btn" onclick="toggleMusic()">🎵 播放音乐</button>
+
+    <div class="header">
+        <div class="title" id="stage-title">STAGE 01</div>
+        <div class="hint" id="stage-hint">拖拽小猫团子拉出红线，走进大门！</div>
+    </div>
+
+    <div id="canvas-box">
+        <canvas id="gameCanvas" width="320" height="320"></canvas>
+    </div>
+
+    <div class="control-tip" id="drag-tip">👉 按住小猫团子拖动走路</div>
+
+    <div id="final-card">
+        <div class="love-sub">
+             这几天很累吧<br>
+            作为回应 我想告诉你 wj❤️qky
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let level = 0;
+        let isCompleted = false;
+        let p = { x: 60, y: 50 };
+        let isDragging = false;
+        let paths = [[], [], []];
+
+        // 第二关双开关状态
+        let stg2Keys = { left: false, right: false };
+
+        // --- 八音盒音乐 ---
+        let audioCtx = null;
+        let isMusicPlaying = false;
+        const notes = [261.63, 329.63, 392.00, 523.25, 440.00, 349.23];
+        let noteIndex = 0;
+
+        function playMusicStep() {
+            if (!isMusicPlaying) return;
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(notes[noteIndex % notes.length], audioCtx.currentTime);
+            noteIndex++;
+
+            gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.2);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            osc.start();
+            osc.stop(audioCtx.currentTime + 1.2);
+
+            setTimeout(playMusicStep, 420);
+        }
+
+        function toggleMusic() {
+            isMusicPlaying = !isMusicPlaying;
+            if (isMusicPlaying) {
+                document.getElementById('bgm-btn').innerText = "🎵 暂停音乐";
+                playMusicStep();
+            } else {
+                document.getElementById('bgm-btn').innerText = "🎵 播放音乐";
+            }
+        }
+
+        // --- 关卡配置 ---
+        const levelConfigs = [
+            {
+                title: "STAGE 01",
+                hint: "直直向下拉出红线，走进大门！",
+                start: { x: 60, y: 50 },
+                door: { x: 60, y: 270 }
+            },
+            {
+                title: "STAGE 02",
+                hint: "绕过左右两侧收集两枚星星钥匙开门！",
+                start: { x: 160, y: 90 }, // 心形凹陷起点
+                door: { x: 160, y: 155 }   // 大门
+            },
+            {
+                title: "STAGE 03",
+                hint: "从 U 型管道左侧滑下去折返上来，走进大门！",
+                start: { x: 235, y: 70 },
+                door: { x: 285, y: 70 }
+            }
+        ];
+
+        function loadStage(stg) {
+            level = stg;
+            document.getElementById('stage-title').innerText = levelConfigs[stg].title;
+            document.getElementById('stage-hint').innerText = levelConfigs[stg].hint;
+            p.x = levelConfigs[stg].start.x;
+            p.y = levelConfigs[stg].start.y;
+            paths[level] = [{ x: p.x, y: p.y }];
+            if (level === 1) stg2Keys = { left: false, right: false };
+            render();
+        }
+
+        // --- 拖拽交互 ---
+        function getPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        function startDrag(e) {
+            if (isCompleted) return;
+            const pos = getPos(e);
+            if (Math.hypot(pos.x - p.x, pos.y - p.y) < 35) {
+                isDragging = true;
+                if (!isMusicPlaying && !audioCtx) toggleMusic();
+            }
+        }
+
+        function onDrag(e) {
+            if (!isDragging || isCompleted) return;
+            const pos = getPos(e);
+
+            p.x = Math.max(15, Math.min(305, pos.x));
+            p.y = Math.max(15, Math.min(305, pos.y));
+
+            paths[level].push({ x: p.x, y: p.y });
+
+            // 第二关收集钥匙检查
+            if (level === 1) {
+                // 左底卡点
+                if (Math.hypot(p.x - 50, p.y - 180) < 35) stg2Keys.left = true;
+                // 右底卡点
+                if (Math.hypot(p.x - 270, p.y - 180) < 35) stg2Keys.right = true;
+            }
+
+            // 进门判断
+            const door = levelConfigs[level].door;
+            const canEnter = level !== 1 || (stg2Keys.left && stg2Keys.right);
+
+            if (canEnter && Math.hypot(p.x - door.x, p.y - door.y) < 22) {
+                isDragging = false;
+                if (level < 2) {
+                    loadStage(level + 1);
+                } else {
+                    finishGame();
+                }
+            } else {
+                render();
+            }
+        }
+
+        function stopDrag() { isDragging = false; }
+
+        canvas.addEventListener('mousedown', startDrag);
+        canvas.addEventListener('mousemove', onDrag);
+        window.addEventListener('mouseup', stopDrag);
+
+        canvas.addEventListener('touchstart', startDrag);
+        canvas.addEventListener('touchmove', onDrag);
+        window.addEventListener('touchend', stopDrag);
+
+        // --- 游戏渲染 ---
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (level === 1) {
+                drawDualSideObstacles();
+            } else if (level === 2) {
+                drawSolidUPath();
+            }
+
+            // 绘制大门
+            const d = levelConfigs[level].door;
+            const isUnlocked = level !== 1 || (stg2Keys.left && stg2Keys.right);
+
+            ctx.fillStyle = isUnlocked ? "#ffeaa7" : "#b2bec3";
+            ctx.strokeStyle = "#4a3e3d";
+            ctx.lineWidth = 3.5;
+            ctx.fillRect(d.x - 15, d.y - 22, 30, 44);
+            ctx.strokeRect(d.x - 15, d.y - 22, 30, 44);
+
+            ctx.fillStyle = "#4a3e3d";
+            ctx.beginPath();
+            ctx.arc(d.x + 8, d.y, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 绘制手划轨迹
+            drawSinglePath(paths[level], 8);
+
+            // 绘制猫咪角色
+            ctx.save();
+            ctx.translate(p.x, p.y);
+
+            ctx.fillStyle = "#ffffff";
+            ctx.strokeStyle = "#4a3e3d";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(0, 0, 15, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // 耳朵
+            ctx.beginPath();
+            ctx.moveTo(-10, -10); ctx.lineTo(-14, -20); ctx.lineTo(-4, -13);
+            ctx.moveTo(10, -10); ctx.lineTo(14, -20); ctx.lineTo(4, -13);
+            ctx.fillStyle = "#ffffff";
+            ctx.fill();
+            ctx.stroke();
+
+            // 表情
+            ctx.fillStyle = "#4a3e3d";
+            ctx.beginPath();
+            ctx.arc(-5, -2, 2, 0, Math.PI * 2);
+            ctx.arc(5, -2, 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "#ff758f";
+            ctx.beginPath();
+            ctx.arc(-8, 3, 3, 0, Math.PI * 2);
+            ctx.arc(8, 3, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawSinglePath(pathArray, strokeWidth) {
+            if (!pathArray || pathArray.length < 2) return;
+            ctx.beginPath();
+            ctx.strokeStyle = "#ff4757";
+            ctx.lineWidth = strokeWidth;
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+            ctx.moveTo(pathArray[0].x, pathArray[0].y);
+            for (let i = 1; i < pathArray.length; i++) {
+                ctx.lineTo(pathArray[i].x, pathArray[i].y);
+            }
+            ctx.stroke();
+        }
+
+        // 第二关：双侧障碍 + 双钥匙收集点，引导完整的爱心一笔画
+        function drawDualSideObstacles() {
+            ctx.save();
+            ctx.fillStyle = "#a29bfe";
+            ctx.strokeStyle = "#4a3e3d";
+            ctx.lineWidth = 3.5;
+
+            // 左上圆块障碍
+            ctx.beginPath();
+            ctx.arc(100, 130, 35, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // 右上圆块障碍
+            ctx.beginPath();
+            ctx.arc(220, 130, 35, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // 两个必要的星号收集卡点（左心房 & 右心房底端）
+            drawStar(50, 180, stg2Keys.left);
+            drawStar(270, 180, stg2Keys.right);
+
+            ctx.restore();
+        }
+
+        function drawStar(x, y, active) {
+            ctx.save();
+            ctx.fillStyle = active ? "#fdcb6e" : "#dfe6e9";
+            ctx.strokeStyle = "#4a3e3d";
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.arc(x, y, 12, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = "#4a3e3d";
+            ctx.font = "bold 12px sans-serif";
+            ctx.fillText(active ? "★" : "☆", x - 5, y + 4);
+            ctx.restore();
+        }
+
+        // 第三关：U 型管道
+        function drawSolidUPath() {
+            ctx.save();
+            ctx.strokeStyle = "#f3a683";
+            ctx.fillStyle = "#f3a683";
+            ctx.lineWidth = 26;
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+
+            ctx.beginPath();
+            ctx.moveTo(235, 70);
+            ctx.lineTo(235, 180);
+            ctx.arc(260, 180, 25, Math.PI, 0, true);
+            ctx.lineTo(285, 70);
+            ctx.stroke();
+
+            ctx.strokeStyle = "#4a3e3d";
+            ctx.lineWidth = 3.5;
+            ctx.beginPath();
+            ctx.moveTo(222, 70);
+            ctx.lineTo(222, 180);
+            ctx.arc(260, 180, 38, Math.PI, 0, true);
+            ctx.lineTo(298, 70);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(248, 70);
+            ctx.lineTo(248, 180);
+            ctx.arc(260, 180, 12, Math.PI, 0, true);
+            ctx.lineTo(272, 70);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        // 🌟 纯粹真实笔迹动画展示
+        let zoom = 0;
+        function finishGame() {
+            isCompleted = true;
+            document.getElementById('stage-title').innerText = "IT'S A DOOR ABLE";
+            document.getElementById('stage-hint').innerText = "退后一步，发现所有爱意 ❤️";
+            document.getElementById('drag-tip').style.display = 'none';
+
+            function animateZoomOut() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                ctx.save();
+                const currentScale = 1 - zoom * 0.35;
+                ctx.translate(canvas.width / 2, canvas.height / 2);
+                ctx.scale(currentScale, currentScale);
+                ctx.translate(-canvas.width / 2, -canvas.height / 2);
+
+                drawSinglePath(paths[0], 12);
+                drawSinglePath(paths[1], 12);
+                drawSinglePath(paths[2], 12);
+
+                ctx.restore();
+
+                if (zoom < 1) {
+                    zoom += 0.02;
+                    requestAnimationFrame(animateZoomOut);
+                } else {
+                    document.getElementById('final-card').style.display = 'block';
+                }
+            }
+            animateZoomOut();
+        }
+
+        loadStage(0);
+    </script>
+</body>
+</html>
